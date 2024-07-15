@@ -3,4 +3,4 @@
 
 using AssetManager.Lib;
 
-LocalHWinfo.test();
+LocalSystemInfoProvider.test();

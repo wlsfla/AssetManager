@@ -9,92 +9,64 @@ using System.Threading.Tasks;
 
 namespace AssetManager.DataModel
 {
-	internal class InfoObject
-	{
-		public List<object> ErrorMessage { get; set; }
-		public List<object> Items { get; set; }
-
-		public InfoObject()
-		{
-			ErrorMessage = new List<object>();
-			Items = new List<object>();
-		}
-	}
-
 	internal class RegistryObject
 	{
-		public RegistryKey RegistryKey { get; set; }
-		public string RegistrySubKey { get; set; }
-		public List<RegistryValueObject> RegistryValueObjects { get; set; }
+		public string Registrykey { get; set; }
+		public Dictionary<string, object> RegistryDumps { get; set; }
 
 		public RegistryObject()
 		{
-			RegistryValueObjects = new List<RegistryValueObject>();
+			RegistryDumps = new Dictionary<string, object>();
 		}
 
-		public static JsonObject GetRegistry(RegistryKey key, string subkey, string[] names)
+		public static JsonObject GetRegistry(RegistryKey key, string subkey)
 		{
-			RegistryObject regobject = new RegistryObject();
-			regobject.SetRegistrykey(key, subkey);
-			regobject.GetRegistryValue(names);
-			string jsonstring = JsonSerializer.Serialize(regobject, new JsonSerializerOptions() { WriteIndented = true });
+			// Dumped Registry
+			RegistryObject regObject = new RegistryObject();
+			regObject.RegistryDumps = regObject.GetRegistryValue(key, subkey);
+
+			// Serialized Registry
+			string jsonstring = JsonSerializer.Serialize(regObject, new JsonSerializerOptions() { WriteIndented = true });
 			var obj = JsonNode.Parse(jsonstring).AsObject();
 
 			return obj;
 		}
 
-		private void SetRegistrykey(RegistryKey key, string subkey)
+		private new Dictionary<string, object> GetRegistryValue(RegistryKey regkey, string subkey)
 		{
-			this.RegistryKey = key;
-			this.RegistrySubKey = subkey;
-		}
-
-		private void GetRegistryValue(string[] names)
-		{
-			var obj = new RegistryValueObject();
-			obj.Success = false;
+			var result = new Dictionary<string, object>();
+			this.Registrykey = $"{regkey.Name}\\{subkey}";
 
 			try
 			{
-				using (var key = RegistryKey.OpenSubKey(RegistrySubKey))
+				using (var key = regkey.OpenSubKey(subkey))
 				{
 					if (key != null)
 					{
-						foreach (var name in names)
+						// key value search
+						foreach (var valueName in key.GetValueNames())
 						{
-							var value = key.GetValue(name);
+							var value = key.GetValue(valueName);
 							if (value != null)
-							{
-								obj.Success = true;
-								obj.Value = value.ToString();
-							}
+								result[valueName] = value.ToString();
 							else
-							{
-								obj.Success = false;
-								obj.Value = null;
-								obj.ErrorMsg = "Value is Null";
-							}
+								result[valueName] = null;
+						}
+
+						// subkey searh
+						foreach (var valueName in key.GetValueNames())
+						{
+
 						}
 					}
 				}
 			}
 			catch (Exception ex)
 			{
-				obj.Success = false;
-				obj.Value = null;
-				obj.ErrorMsg = ex.Message;
 				Console.WriteLine($"Error reading registry value: {ex.Message}");
 			}
 
-			RegistryValueObjects.Add(obj);
+			return result;
 		}
-	}
-
-	internal class RegistryValueObject
-	{
-		public bool Success { get; set; }
-		public string Name { get; set; }
-		public string Value { get; set; }
-		public string ErrorMsg { get; set; }
 	}
 }
