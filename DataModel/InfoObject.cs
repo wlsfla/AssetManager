@@ -29,13 +29,20 @@ namespace AssetManager.DataModel
 			string jsonstring = JsonSerializer.Serialize(regObject, new JsonSerializerOptions() { WriteIndented = true });
 			var obj = JsonNode.Parse(jsonstring).AsObject();
 
-			return obj;
+			var wrappedObject = new JsonObject
+			{
+				["Source"] = "Win_Registry",
+				["Results"] = new JsonArray(obj)
+			};
+
+			return wrappedObject;
 		}
 
 		private new Dictionary<string, object> GetRegistryValue(RegistryKey regkey, string subkey)
 		{
 			var result = new Dictionary<string, object>();
 			this.Registrykey = $"{regkey.Name}\\{subkey}";
+			Console.WriteLine($"[*] INFO : Dump Registry Of {Registrykey}");
 
 			try
 			{

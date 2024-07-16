@@ -10,6 +10,8 @@ using AssetManager.DataModel;
 using System.Web;
 using System.Management.Automation;
 using Microsoft.VisualBasic;
+using System.Net;
+using System.Net.Sockets;
 
 namespace AssetManager.Lib
 {
@@ -29,85 +31,117 @@ namespace AssetManager.Lib
 
 		public static void test()
 		{
-			//RootNode.Add("info_Edge", GetEdgeVersion);
-			//RootNode.Add("info_SystemBuild", GetSystemBuilinfo);
-			//RootNode.Add("info_hauri", GetHauriEngineVersion);
+			//GetRegistryDump();
+			//GetWMIResource();
 
-			//Console.WriteLine(RootNode.ToString());
 
 			//RootNode.Add("info_monitor", new JsonObject()); // powershell test
 
-			Test_WMI();
+			RootNode.Add("Metainfo", GetMetainfo);
+
+			Console.WriteLine(RootNode);
 
 
+			string path = Path.Combine(
+				Environment.GetEnvironmentVariable("USERPROFILE"),
+				"Systeminfo.json"
+				);
+			//File.WriteAllText(path, RootNode.ToString());
 		}
 
-		private static void Test_WMI()
+		private static JsonObject GetMetainfo
 		{
-			var obj = new JsonObject();
+			get
+			{
+				var result = new JsonObject();
 
-			var classList = new Dictionary<string, string>();
-			//classList.Add("MS_SystemInformation", @"root\wmi");
-			////classList.Add("WmiMonitorID", @"root\wmi"); // 모니터정보는 별도 추출
-			//classList.Add("Win32_Tpm", @"root\CIMV2\Security\MicrosoftTpm");
-			//classList.Add("Win32_BIOS", @"root\cimv2");
+				var ComputerName = Environment.GetEnvironmentVariable("ComputerName");
+				var CurrentDateTime = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+				var CurrentTimeStamp = DateTimeOffset.Now.ToUnixTimeSeconds().ToString();
+
+				List<string> addrList = new List<string>();
+				IPAddress[] addresses = Dns.GetHostAddresses(Dns.GetHostName());
+				if (addresses != null && addresses.Length > 0)
+					foreach (IPAddress address in addresses)
+						if (address.AddressFamily == AddressFamily.InterNetwork)
+							addrList.Add(address.ToString());
+				
+				string jsonstring = JsonSerializer.Serialize(addrList, new JsonSerializerOptions() { WriteIndented = true });
+
+				result.Add("ComputerName", ComputerName);
+				result.Add("CurrentDateTime", CurrentDateTime);
+				result.Add("CurrentTimeStamp", CurrentTimeStamp);
+				result.Add("IpAddresses", JsonArray.Parse(jsonstring));
+				
+				return result;
+			}
+		}
+
+		private static void GetRegistryDump()
+		{
+			RootNode.Add("info_Edge", GetEdgeVersion);
+			RootNode.Add("info_SystemBuild", GetSystemBuilinfo);
+			RootNode.Add("info_hauri", GetHauriEngineVersion);
+		}
+
+		private static void GetWMIResource()
+		{
+			var classList = new Dictionary<string , string>();
+			classList.Add("MS_SystemInformation", @"root\wmi");
+			classList.Add("WmiMonitorID", @"root\wmi"); // 모니터정보는 별도 추출
+			classList.Add("Win32_Tpm", @"root\cimv2\Security\MicrosoftTpm");
+			classList.Add("Win32_BIOS", @"root\cimv2");
 			classList.Add("Win32_NetworkAdapter", @"root\cimv2");
-			//classList.Add("Win32_NetworkAdapterConfiguration", @"root\cimv2");
-			//classList.Add("Win32_ComputerSystem", @"root\cimv2");
-			//classList.Add("Win32_ComputerSystemProduct", @"root\cimv2");
-			//classList.Add("Win32_Processor", @"root\cimv2");
-			//classList.Add("Win32_DiskDrive", @"root\cimv2");
-			//classList.Add("Win32_OperatingSystem", @"root\cimv2");
-			//classList.Add("Win32_Printer", @"root\cimv2");
-			//classList.Add("Win32_PrinterConfiguration", @"root\cimv2");
-			//classList.Add("Win32_PrinterDriver", @"root\cimv2");
-			//classList.Add("Win32_PhysicalMemory", @"root\cimv2");
-			//classList.Add("Win32_UserAccount", @"root\cimv2");
-
-
-
-			//JsonSerializer.Serialize(regObject, new JsonSerializerOptions() { WriteIndented = true });
+			classList.Add("Win32_NetworkAdapterConfiguration", @"root\cimv2");
+			classList.Add("Win32_ComputerSystem", @"root\cimv2");
+			classList.Add("Win32_ComputerSystemProduct", @"root\cimv2");
+			classList.Add("Win32_Processor", @"root\cimv2");
+			classList.Add("Win32_DiskDrive", @"root\cimv2");
+			classList.Add("Win32_OperatingSystem", @"root\cimv2");
+			classList.Add("Win32_Printer", @"root\cimv2");
+			classList.Add("Win32_PrinterConfiguration", @"root\cimv2");
+			classList.Add("Win32_PrinterDriver", @"root\cimv2");
+			classList.Add("Win32_PhysicalMemory", @"root\cimv2");
+			classList.Add("Win32_UserAccount", @"root\cimv2");
+			classList.Add("MSFT_PhysicalDisk", @"root\Microsoft\Windows\Storage");
 
 			using (PowerShell powerShell = PowerShell.Create())
 			{
+				string _resultPropertyString = @"Results";
+
 				foreach (var item in classList)
 				{
-					//string name = "Win32_BIOS";
+					Console.WriteLine($"[*] INFO : Query To {item.Key}");
+
 					string script = GetCIMQuery(item.Key, item.Value);
-					
 					powerShell.AddScript(script);
 					var results = powerShell.Invoke();
 
-					foreach (var result in results)
+					if (results.Count > 0)
 					{
-						var s = result.ToString();
-						var jsonobj = new JsonObject();
+						var jsonArr = new JsonArray();
+						foreach (var result in results)
+							jsonArr.Add(JsonNode.Parse(result.ToString()));
 
-						if (s[0] != '{') // check json list case
+						var wrappedObject = new JsonObject
 						{
+							["Source"] = "Wmi",
+							[_resultPropertyString] = jsonArr
+						};
 
-							new JsonObject
-							{
-								[item.Key] = JsonNode.Parse(s).AsArray()
-							};
-
-							
-						}
-						else // normal case
-						{
-							jsonobj = JsonNode.Parse(s).AsObject();
-							
-						}
-						
-						Console.WriteLine(jsonobj);
-
-						//Console.WriteLine(jsonobj.ToString());
-						Console.WriteLine("######################################################################");
+						RootNode.Add(item.Key, wrappedObject);
 					}
+					else
+					{
+						var wrappedObject = new JsonObject
+						{
+							["Source"] = "Wmi",
+							[_resultPropertyString] = null
+						};
 
+						RootNode.Add(item.Key, wrappedObject);
+					}
 				}
-
-				
 			}
 		}
 
