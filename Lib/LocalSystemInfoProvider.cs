@@ -6,16 +6,16 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
-using AssetManager.DataModel;
 using System.Web;
 using System.Management.Automation;
 using Microsoft.VisualBasic;
 using System.Net;
 using System.Net.Sockets;
+using AssetManager.Lib.DataModel;
 
 namespace AssetManager.Lib
 {
-	internal class LocalSystemInfoProvider
+    internal class LocalSystemInfoProvider
 	{
 		public static JsonObject RootNode = new JsonObject();
 
@@ -37,7 +37,9 @@ namespace AssetManager.Lib
 
 			//RootNode.Add("info_monitor", new JsonObject()); // powershell test
 
-			RootNode.Add("Metainfo", GetMetainfo);
+			//RootNode.Add("Metainfo", GetMetainfo);
+			RootNode.Add("Monitorinfo", GetMonitorinfo);
+			RootNode.Add("SystemBuilinfo", GetSystemBuilinfo);
 
 			Console.WriteLine(RootNode);
 
@@ -72,7 +74,15 @@ namespace AssetManager.Lib
 				result.Add("CurrentDateTime", CurrentDateTime);
 				result.Add("CurrentTimeStamp", CurrentTimeStamp);
 				result.Add("IpAddresses", JsonArray.Parse(jsonstring));
-				
+
+				/// UserInfo
+				/// - UserName
+				/// - OfficePhoneNumber
+				/// - DepartmentCode
+				/// - DepartmentName
+				/// - 
+
+
 				return result;
 			}
 		}
@@ -88,7 +98,7 @@ namespace AssetManager.Lib
 		{
 			var classList = new Dictionary<string , string>();
 			classList.Add("MS_SystemInformation", @"root\wmi");
-			classList.Add("WmiMonitorID", @"root\wmi"); // 모니터정보는 별도 추출
+			classList.Add("WmiMonitorID", @"root\wmi");
 			classList.Add("Win32_Tpm", @"root\cimv2\Security\MicrosoftTpm");
 			classList.Add("Win32_BIOS", @"root\cimv2");
 			classList.Add("Win32_NetworkAdapter", @"root\cimv2");
@@ -103,6 +113,7 @@ namespace AssetManager.Lib
 			classList.Add("Win32_PrinterDriver", @"root\cimv2");
 			classList.Add("Win32_PhysicalMemory", @"root\cimv2");
 			classList.Add("Win32_UserAccount", @"root\cimv2");
+			classList.Add("Win32_QuickFixEngineering", @"root\cimv2");
 			classList.Add("MSFT_PhysicalDisk", @"root\Microsoft\Windows\Storage");
 
 			using (PowerShell powerShell = PowerShell.Create())
@@ -123,11 +134,24 @@ namespace AssetManager.Lib
 						foreach (var result in results)
 							jsonArr.Add(JsonNode.Parse(result.ToString()));
 
-						var wrappedObject = new JsonObject
+						var wrappedObject = new JsonObject();
+
+						if (jsonArr.Count == 1)
 						{
-							["Source"] = "Wmi",
-							[_resultPropertyString] = jsonArr
-						};
+							wrappedObject = new JsonObject
+							{
+								["Source"] = "Wmi",
+								[_resultPropertyString] = jsonArr[0]
+							};
+						}
+						else
+						{
+							wrappedObject = new JsonObject
+							{
+								["Source"] = "Wmi",
+								[_resultPropertyString] = jsonArr[0]
+							};
+						}
 
 						RootNode.Add(item.Key, wrappedObject);
 					}
@@ -142,6 +166,60 @@ namespace AssetManager.Lib
 						RootNode.Add(item.Key, wrappedObject);
 					}
 				}
+			}
+		}
+
+		public static JsonObject GetMonitorinfo
+		{
+			get
+			{
+				var wmiName = "WmiMonitorID_v2";
+				var _result = new JsonObject();
+				var script = @"Get-CimInstance WmiMonitorID -Namespace root\wmi | ForEach-Object { [PSCustomObject]@{ ManufacturerName = [System.Text.Encoding]::ASCII.GetString($_.ManufacturerName) -replace ""`0"", """"; ProductCodeID = [System.Text.Encoding]::ASCII.GetString($_.ProductCodeID) -replace ""`0"", """"; SerialNumberID = [System.Text.Encoding]::ASCII.GetString($_.SerialNumberID) -replace ""`0"", """"; UserFriendlyName = [System.Text.Encoding]::ASCII.GetString($_.UserFriendlyName) -replace ""`0"", """"; Active = $_.Active; WeekOfManufacture = $_.WeekOfManufacture; YearOfManufacture = $_.YearOfManufacture} } | ConvertTo-Json";
+
+				using (PowerShell powerShell = PowerShell.Create())
+				{
+					string _resultPropertyString = @"Results";
+
+					Console.WriteLine($"[*] INFO : Query To {wmiName}");
+
+					powerShell.AddScript(script);
+					var results = powerShell.Invoke();
+
+					if (results.Count > 0)
+					{
+						var jsonArr = new JsonArray();
+						foreach (var result in results)
+							jsonArr.Add(JsonNode.Parse(result.ToString()));
+
+						if (jsonArr.Count == 1)
+						{
+							_result = new JsonObject
+							{
+								["Source"] = "Wmi",
+								[_resultPropertyString] = jsonArr
+							};
+						}
+						else
+						{
+							_result = new JsonObject
+							{
+								["Source"] = "Wmi",
+								[_resultPropertyString] = jsonArr[0]
+							};
+						}
+					}
+					else
+					{
+						_result = new JsonObject
+						{
+							["Source"] = "Wmi",
+							[_resultPropertyString] = null
+						};
+					}
+				}
+
+				return _result;
 			}
 		}
 
