@@ -1,12 +1,6 @@
-﻿using AssetManager.Lib.DataModel;
-using AssetManager.Lib.Interface;
-using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using AssetManager.Lib.Interface;
 using System.Management.Automation;
-using System.Text;
 using System.Text.Json.Nodes;
-using System.Threading.Tasks;
 
 namespace AssetManager.Lib
 {
@@ -16,7 +10,7 @@ namespace AssetManager.Lib
 		{
 			var _result = new JsonObject();
 
-			
+
 
 			return _result;
 		}
@@ -28,7 +22,6 @@ namespace AssetManager.Lib
 
 		private static void RunPowerShellScript(string script, ref JsonObject obj)
 		{
-
 			using (PowerShell powerShell = PowerShell.Create())
 			{
 				powerShell.AddScript(script);
@@ -40,7 +33,7 @@ namespace AssetManager.Lib
 				var jsonArr = new JsonArray();
 				jsonArr.Add(JsonConverter.Parse(_result[0].ToString()));
 
-				
+
 
 			}
 		}
